@@ -1,19 +1,68 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { useDispatch } from 'react-redux'
+import userSlice from '../store/user'
+import axios from 'axios'
+import jwtDecode from 'jwt-decode'
+import GoogleLogin from 'react-google-login'
 
 const Login = () => {
 
     const { register, handleSubmit, formState } = useForm()
+    const [loginStatus, setLoginStatus] = useState({
+        success: false,
+        message: ''
+    })
+
+    const dispatch = useDispatch()
+    const navigate = useNavigate()
 
     const formSubmitHandler = (data) => {
         // proses login
+        const postData = {
+            email: data.user_email,
+            password: data.user_password,
+            firstname: data.user_firstname,
+            lastname: data.user_lastname,
+            isAdmin: false
+        }
+
+        axios.post('http://localhost:4000/login', postData)
+        .then( res=> {
+            if ( typeof res.data.accessToken !== 'undefined' ) {
+                // menyimpan token di localstorage
+                localStorage.setItem('minishopAccessToken', res.data.accessToken)
+
+                // menyimpan user di redux store
+                const user = jwtDecode(res.data.accessToken)
+                axios.get(`http://localhost:4000/users/${user.sub}`)
+                .then( res => {
+                    dispatch( userSlice.actions.addUser({userData: res.data}) )
+                    navigate('/')
+                })
+            }
+        }).catch( err => {
+            setLoginStatus({
+                success: false,
+                message: 'Sorry, something is wrong. Please try again later'
+            })
+        })
+    }
+
+    const googleSuccessLogin = (res) => {
+        console.log(res)
+    }
+
+    const googleFailedLogin = (res) => {
+        console.log(res)
     }
 
   return (
     <section>
             <div className="container py-8">
                 <div className="max-w-[500px] mx-auto">
+                { ( !loginStatus.success && loginStatus.message ) && <p className="text-sm text-red-500 italic">{loginStatus.message}</p> }
                     <form onSubmit={ handleSubmit(formSubmitHandler) }>
                         <div className="mb-4">
                             <label htmlFor="email">Email</label>
@@ -28,8 +77,21 @@ const Login = () => {
                         <div class="mb-8">
                             <button type="submit" className="bg-green-700 px-6 py-2 text-white">Login</button>
                         </div>
-                        <p>Don't have an accout? <Link to="/register" className="text-blue-600">Register Now</Link></p>
+                        <p>Don't have an account? <Link to="/register" className="text-blue-600">Register Now</Link></p>
                     </form>
+                    <GoogleLogin
+                        clientId="504031437607-g551cm7jgfhs4k4fj7t3128brndk0tog.apps.googleusercontent.com"
+                        render={ props => {
+                            return (
+                                <button className="bg-blue-500 text-white rounded mt-2 px-8 py-3" onClick={props.onClick} disabled={props.disabled}>
+                                    Login with Google
+                                </button>
+                            )
+                        }}
+                        onSuccess={googleSuccessLogin}
+                        onFailure={googleFailedLogin}
+                        cookiePolicy={'single_host_origin'}
+                    />
                 </div>
             </div>
         </section>

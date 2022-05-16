@@ -1,19 +1,60 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { useDispatch } from 'react-redux'
+import userSlice from '../store/user'
+import axios from 'axios'
+import jwtDecode from 'jwt-decode'
 
 const Register = () => {
 
     const { register, handleSubmit, formState } = useForm()
+    const [regStatus, setRegStatus] = useState({
+        success: false,
+        message: ''
+    })
+
+    const dispatch = useDispatch()
+    const navigate = useNavigate()
 
     const formSubmitHandler = (data) => {
         // proses registrasi
+        const postData = {
+            email: data.user_email,
+            password: data.user_password,
+            firstname: data.user_firstname,
+            lastname: data.user_lastname,
+            isAdmin: false
+        }
+
+        axios.post('http://localhost:4000/register', postData)
+        .then( res=> {
+            if ( typeof res.data.accessToken !== 'undefined' ) {
+                // menyimpan token di localstorage
+                localStorage.setItem('minishopAccessToken', res.data.accessToken)
+
+                // menyimpan user di redux store
+                const user = jwtDecode(res.data.accessToken)
+                axios.get(`http://localhost:4000/users/${user.sub}`)
+                .then( res => {
+                    dispatch( userSlice.actions.addUser({userData: res.data}) )
+                    navigate('/')
+                })
+            }
+        }).catch( err => {
+            setRegStatus({
+                success: false,
+                message: 'Sorry, something is wrong. Please try again later'
+            })
+        })
+
     }
 
   return (
     <section>
             <div className="container py-8">
                 <div className="max-w-[500px] mx-auto">
+                    { ( !regStatus.success && regStatus.message ) && <p className="text-sm text-red-500 italic">{regStatus.message}</p> }
                     <form onSubmit={ handleSubmit(formSubmitHandler) }>
                         <div className="mb-4">
                             <label htmlFor="email">Email</label>
